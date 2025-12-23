@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity, Clipboard, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { Alert, Clipboard, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { generateToken } from '../../domain/totpEngine';
 import { useTheme } from '../context/ThemeContext';
 
@@ -40,10 +40,22 @@ const VaultItem = ({ item, onToggleFavorite, onDelete }) => {
   };
 
   const handleDeletePress = () => {
-    Alert.alert("Eliminar", "¿Borrar este item?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: () => onDelete(item.id) }
-    ]);
+    if (Platform.OS === 'web') {
+      const confirm = window.confirm("¿Estás seguro de que quieres eliminar este item? Esta acción no se puede deshacer.");
+      if (confirm) {
+        onDelete(item.id);
+      }
+    } else {
+      // Lógica nativa (Móvil)
+      Alert.alert(
+        "Eliminar Item",
+        "Esta acción no se puede deshacer.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Eliminar", style: "destructive", onPress: () => onDelete(item.id) }
+        ]
+      );
+    }
   };
 
   const renderRightContent = () => {

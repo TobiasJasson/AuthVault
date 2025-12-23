@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import VaultItem from '../components/VaultItem';
-import { VaultService } from '../../services/vaultService';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, FlatList, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AuthService } from '../../services/authService';
+import { VaultService } from '../../services/vaultService';
+import VaultItem from '../components/VaultItem';
 import { useTheme } from '../context/ThemeContext';
 
 const Dashboard = () => {
@@ -128,8 +128,9 @@ const Dashboard = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { 
-    paddingHorizontal: 24,
-    paddingVertical: 20, 
+    paddingHorizontal: 24, 
+    paddingTop: Platform.OS === 'android' ? 50 : 20, 
+    paddingBottom: 20,
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center' 

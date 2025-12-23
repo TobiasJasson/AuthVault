@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Switch, TextInput, Alert, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, Platform, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { AuthService } from '../../services/authService';
 import { VaultService } from '../../services/vaultService';
 import { useTheme } from '../context/ThemeContext';
@@ -10,6 +10,18 @@ const SettingsScreen = () => {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
   const [newPin, setNewPin] = useState('');
+
+  const handleLogout = async () => {
+    Alert.alert('Cerrar Sesión', '¿Estás seguro que deseas salir?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { 
+        text: 'Salir', 
+        onPress: () => {
+          router.replace('/'); 
+        }
+      }
+    ]);
+  };
 
   const handleUpdatePin = async () => {
     if (newPin.length < 4) {
@@ -80,8 +92,16 @@ const SettingsScreen = () => {
           </View>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.subText }]}>ZONA DE PELIGRO</Text>
+        <Text style={[styles.sectionTitle, { color: colors.subText }]}>SESIÓN</Text>
         <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <TouchableOpacity style={styles.dangerBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={24} color={colors.primary} style={{marginRight:10}} />
+            <Text style={[styles.dangerText, { color: colors.primary }]}>Cerrar Sesión</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: colors.subText }]}>ZONA DE PELIGRO</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.danger, borderWidth: 1 }]}>
           <TouchableOpacity style={styles.dangerBtn} onPress={handleDeleteAll}>
             <Ionicons name="trash-bin-outline" size={24} color={colors.danger} style={{marginRight:10}} />
             <Text style={[styles.dangerText, { color: colors.danger }]}>Borrar Bóveda Completa</Text>
@@ -98,7 +118,10 @@ const SettingsScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { 
-    padding: 20, flexDirection: 'row', alignItems: 'center', 
+    paddingHorizontal: 20, 
+    paddingTop: Platform.OS === 'android' ? 50 : 20,
+    paddingBottom: 20,
+    flexDirection: 'row', alignItems: 'center', 
     borderBottomWidth: 1 
   },
   backBtn: { marginRight: 15 },
