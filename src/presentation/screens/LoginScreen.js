@@ -36,14 +36,37 @@ const LoginScreen = () => {
 
       if (allUsers.length === 0) {
         setIsAddingUser(true);
-      } else if (allUsers.length === 1) {
-        setSelectedUser(allUsers[0]);
-      }
+      } 
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteUser = (userToDelete) => {
+    Alert.alert(
+      "Eliminar Usuario",
+      `¿Estás seguro de eliminar a "${userToDelete.username}" y todos sus datos?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Eliminar", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await AuthService.deleteSpecificUser(userToDelete.username);
+              await loadUsers();
+            } catch (error) {
+              Alert.alert("Error", "No se pudo eliminar el usuario");
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleLogin = async () => {
@@ -81,7 +104,7 @@ const LoginScreen = () => {
       setPin('');
       setConfirmPin('');
       setIsAddingUser(false);
-      router.replace('/dashboard');
+      loadUsers();
     } catch (error) {
       Alert.alert('Error', error.message || 'No se pudo crear el usuario');
       setLoading(false);
@@ -167,19 +190,27 @@ const LoginScreen = () => {
             <Text style={styles.title}>¿Quién eres?</Text>
             <Text style={styles.subtitle}>Selecciona tu perfil</Text>
             
-            <ScrollView style={{ width: '100%', maxHeight: 300 }}>
+            <ScrollView style={{ width: '100%', maxHeight: 400 }}>
               {users.map((u, index) => (
-                <TouchableOpacity 
-                  key={index} 
-                  style={styles.userCard} 
-                  onPress={() => setSelectedUser(u)}
-                >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{u.username.charAt(0).toUpperCase()}</Text>
-                  </View>
-                  <Text style={styles.userName}>{u.username}</Text>
-                  <Ionicons name="chevron-forward" size={24} color="#ccc" />
-                </TouchableOpacity>
+                <View key={index} style={styles.userCardWrapper}>
+                   <TouchableOpacity 
+                     style={styles.userCard} 
+                     onPress={() => setSelectedUser(u)}
+                   >
+                     <View style={styles.avatar}>
+                       <Text style={styles.avatarText}>{u.username.charAt(0).toUpperCase()}</Text>
+                     </View>
+                     <Text style={styles.userName}>{u.username}</Text>
+                     <Ionicons name="chevron-forward" size={24} color="#ccc" />
+                   </TouchableOpacity>
+
+                   <TouchableOpacity 
+                     style={styles.deleteBtn} 
+                     onPress={() => handleDeleteUser(u)}
+                   >
+                     <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+                   </TouchableOpacity>
+                </View>
               ))}
             </ScrollView>
 
@@ -259,13 +290,24 @@ const styles = StyleSheet.create({
   btnLink: { marginTop: 20, alignItems: 'center' },
   linkText: { color: '#007AFF', fontSize: 16, fontWeight: '600' },
 
+  userCardWrapper: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: 10,
+  },
   userCard: {
+    flex: 1,
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#fff', padding: 15, borderRadius: 16,
-    marginBottom: 10,
     borderWidth: 1, borderColor: '#eee',
-    shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 5, elevation: 2
+    shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 5, elevation: 2,
+    marginRight: 10
   },
+  deleteBtn: {
+    padding: 10,
+    backgroundColor: '#FFF0F0',
+    borderRadius: 12,
+    borderWidth: 1, borderColor: '#FFE0E0'
+  },
+  
   avatar: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: '#eee',
     justifyContent: 'center', alignItems: 'center', marginRight: 15

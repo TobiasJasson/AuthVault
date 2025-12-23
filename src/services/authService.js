@@ -61,5 +61,19 @@ export const AuthService = {
     
     await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
     currentUserSession = null;
+  },
+
+  deleteSpecificUser: async (usernameToDelete) => {
+    let users = await AuthService.getAllUsers();
+    // Filtramos para quitar al usuario seleccionado
+    const newUsersList = users.filter(u => u.username !== usernameToDelete);
+    
+    // Guardamos la lista actualizada
+    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(newUsersList));
+    
+    // ¡IMPORTANTE! También borramos su bóveda de datos para no dejar basura
+    await AsyncStorage.removeItem(`vault_data_${usernameToDelete}`);
+    
+    return true;
   }
 };

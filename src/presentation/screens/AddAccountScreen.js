@@ -1,16 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { VaultService } from '../../services/vaultService';
 import { useTheme } from '../context/ThemeContext';
 
 const AddAccountScreen = () => {
   const router = useRouter();
   const { colors } = useTheme();
+  const params = useLocalSearchParams();
+  
   const [issuer, setIssuer] = useState('');
   const [account, setAccount] = useState('');
   const [secret, setSecret] = useState('');
+
+  useEffect(() => {
+    if (params.scannedSecret) {
+      setSecret(params.scannedSecret);
+      if (params.scannedIssuer) setIssuer(params.scannedIssuer);
+      if (params.scannedAccount) setAccount(params.scannedAccount);
+    }
+  }, [params]);
 
   const handleSave = async () => {
     if (!issuer || !secret) {
@@ -35,10 +46,14 @@ const AddAccountScreen = () => {
             <Ionicons name="arrow-back" size={24} color={colors.text} />
          </TouchableOpacity>
          <Text style={[styles.title, { color: colors.text, marginBottom: 0 }]}>Nueva Cuenta</Text>
+         
+         <TouchableOpacity onPress={() => router.push('/scan-qr')}>
+            <Ionicons name="qr-code-outline" size={24} color={colors.primary} />
+         </TouchableOpacity>
       </View>
       
       <View style={styles.content}>
-        <Text style={[styles.label, { color: colors.subText }]}>Proveedor (Ej: Google)</Text>
+        <Text style={[styles.label, { color: colors.subText }]}>Proveedor</Text>
         <TextInput 
           style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} 
           value={issuer} 
@@ -46,7 +61,7 @@ const AddAccountScreen = () => {
           placeholderTextColor={colors.subText}
         />
 
-        <Text style={[styles.label, { color: colors.subText }]}>Cuenta (Ej: mi@email.com)</Text>
+        <Text style={[styles.label, { color: colors.subText }]}>Cuenta</Text>
         <TextInput 
           style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} 
           value={account} 
@@ -59,7 +74,7 @@ const AddAccountScreen = () => {
           style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} 
           value={secret} 
           onChangeText={setSecret} 
-          placeholder="JBSWY3DPEHPK3PXP"
+          placeholder=" "
           placeholderTextColor={colors.subText}
           autoCapitalize="characters"
         />
@@ -80,9 +95,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { 
     paddingHorizontal: 20, 
-    paddingTop: Platform.OS === 'android' ? 50 : 20,
+    paddingTop: 20,
     paddingBottom: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 15
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
   },
   content: { padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold' },

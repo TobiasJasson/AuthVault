@@ -23,6 +23,7 @@ import { ThemeProvider, useTheme } from '../src/presentation/context/ThemeContex
           <Stack.Screen name="add-account" options={{ presentation: 'modal' }} />
           <Stack.Screen name="add-note" options={{ presentation: 'modal' }} />
           <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="scan-qr" options={{ presentation: 'modal', headerShown: false }} />
         </Stack>
         <StatusBar style={isDark ? "light" : "dark"} backgroundColor={isDark ? '#000000' : '#F2F2F7'} />
       </>
