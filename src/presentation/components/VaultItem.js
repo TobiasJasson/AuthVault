@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Platform, TouchableOpacity, Clipboard, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { generateToken } from '../../domain/totpEngine';
+import { useTheme } from '../context/ThemeContext';
 
-const VaultItem = ({ item, onToggleFavorite }) => {
+const VaultItem = ({ item, onToggleFavorite, onDelete }) => {
+  const { colors, isDark } = useTheme();
   const [code, setCode] = useState('--- ---');
   const [timeLeft, setTimeLeft] = useState(30);
   const [showNote, setShowNote] = useState(false);
@@ -17,8 +19,13 @@ const VaultItem = ({ item, onToggleFavorite }) => {
       const seconds = Math.floor(Date.now() / 1000);
       const remaining = 30 - (seconds % 30);
       setTimeLeft(remaining);
-      const result = generateToken(item.secret, item.issuer);
-      setCode(result.code);
+      try {
+        const result = generateToken(item.secret, item.issuer);
+        if (result.code === 'ERROR') setCode('ERROR');
+        else setCode(result.code);
+      } catch (error) {
+        setCode('ERROR');
+      }
     };
 
     update();
@@ -26,101 +33,220 @@ const VaultItem = ({ item, onToggleFavorite }) => {
     return () => clearInterval(interval);
   }, [item.secret, isNote]);
 
-  const handlePress = () => {
-    if (isNote) {
-      setShowNote(!showNote); // Expandir/Contraer nota
-    } else {
-      Clipboard.setString(code);
-      Alert.alert('Copiado', 'Código TOTP copiado al portapapeles');
-    }
+  const handleCopy = () => {
+    if (code === 'ERROR' && !isNote) return;
+    const content = isNote ? item.secret : code;
+    Clipboard.setString(content);
   };
 
-  const copyNote = () => {
-    Clipboard.setString(item.secret);
-    Alert.alert('Copiado', 'Nota copiada al portapapeles');
+  const handleDeletePress = () => {
+    Alert.alert("Eliminar", "¿Borrar este item?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar", style: "destructive", onPress: () => onDelete(item.id) }
+    ]);
   };
-  const renderContent = () => {
+
+  const renderRightContent = () => {
     if (isNote) {
       return (
-        <View style={styles.noteContainer}>
-          <Ionicons name="document-text-outline" size={24} color="#555" style={{marginBottom: 5}}/>
+        <View style={styles.rightContent}>
           {showNote ? (
-            <TouchableOpacity onLongPress={copyNote}>
-              <Text style={styles.noteText}>{item.secret}</Text>
-              <Text style={styles.hint}>(Mantén presionado para copiar)</Text>
-            </TouchableOpacity>
+            <Text style={[styles.noteTextVisible, { color: colors.text }]}>
+              {item.secret}
+            </Text>
           ) : (
-            <Text style={styles.noteBlur}>•••• •••• •••• ••••</Text>
+            <Text style={[styles.noteBlur, { color: colors.subText }]}>••••</Text>
           )}
         </View>
       );
     }
 
-    const displayToken = code.length === 6 ? `${code.slice(0,3)} ${code.slice(3)}` : code;
+    const isError = code === 'ERROR';
+    if (isError) {
+      return (
+        <View style={styles.rightContent}>
+          <View style={[styles.errorBadge, { backgroundColor: colors.background }]}>
+            <Ionicons name="alert-circle" size={18} color={colors.subText} style={{ marginRight: 4 }} />
+            <Text style={[styles.errorText, { color: colors.subText }]}>Inválido</Text>
+          </View>
+        </View>
+      );
+    }
+
+    const displayToken = code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
     return (
-      <View style={styles.tokenContainer}>
-        <Text style={[styles.code, { color: timeLeft < 5 ? '#FF3B30' : '#007AFF' }]}>
+      <View style={styles.rightContent}>
+        <Text style={[styles.code, { color: timeLeft < 5 ? colors.danger : colors.primary }]}>
           {displayToken}
         </Text>
-        <Text style={styles.timer}>{timeLeft}s</Text>
+        <Text style={[styles.timer, { color: colors.subText }]}>{timeLeft}s</Text>
       </View>
     );
   };
 
   return (
-    <TouchableOpacity onPress={handlePress} activeOpacity={0.9} style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <View style={[styles.iconBox, { backgroundColor: isNote ? '#FFF4E5' : '#E5F1FF' }]}>
-             <Ionicons 
-               name={isNote ? "sticky-note" : "qr-code"} 
-               size={20} 
-               color={isNote ? "#FF9500" : "#007AFF"} 
-             />
+    <View 
+      style={[styles.container, { backgroundColor: colors.card, shadowColor: isDark ? '#000' : '#888' }]}
+    >
+      
+      <TouchableOpacity 
+        onPress={handleCopy} 
+        activeOpacity={0.6}
+        style={styles.copyZone}
+      >
+        <View style={styles.leftSection}>
+          <View style={[styles.iconBox, { backgroundColor: isNote ? '#FFF4E5' : colors.iconBg }]}>
+            <Ionicons
+              name={isNote ? "sticky-note" : "qr-code"}
+              size={28} 
+              color={isNote ? "#FF9500" : colors.primary}
+            />
           </View>
-          <View style={{marginLeft: 10, flex: 1}}>
-            <Text style={styles.issuer}>{item.issuer}</Text>
-            <Text style={styles.account}>{item.account}</Text>
+
+          <View style={styles.infoBox}>
+            <Text style={[styles.issuer, { color: colors.text }]} numberOfLines={1}>
+              {item.issuer}
+            </Text>
+            <Text style={[styles.account, { color: colors.subText }]} numberOfLines={1}>
+              {item.account}
+            </Text>
           </View>
         </View>
 
-        {/* Botón Corazón */}
-        <TouchableOpacity onPress={() => onToggleFavorite(item.id)} style={styles.favButton}>
-          <Ionicons 
-            name={item.isFavorite ? "heart" : "heart-outline"} 
-            size={24} 
-            color={item.isFavorite ? "#FF3B30" : "#C7C7CC"} 
+        {renderRightContent()}
+      </TouchableOpacity>
+
+      <View style={[styles.actionsBox, { borderLeftColor: colors.border }]}>
+        
+        <TouchableOpacity onPress={() => onToggleFavorite(item.id)} style={styles.actionBtn}>
+          <Ionicons
+            name={item.isFavorite ? "heart" : "heart-outline"}
+            size={24}
+            color={item.isFavorite ? colors.danger : colors.subText}
           />
         </TouchableOpacity>
+
+        {isNote && (
+          <TouchableOpacity onPress={() => setShowNote(!showNote)} style={styles.actionBtn}>
+            <Ionicons
+              name={showNote ? "eye-off-outline" : "eye-outline"}
+              size={24}
+              color={colors.subText}
+            />
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity 
+          onPress={handleDeletePress} 
+          style={styles.actionBtn}
+          hitSlop={{top: 10, bottom: 10, left: 10, right: 10}} 
+        >
+          <Ionicons name="trash-outline" size={24} color={colors.danger} />
+        </TouchableOpacity>
+
       </View>
 
-      <View style={styles.body}>
-        {renderContent()}
-      </View>
-    </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff', marginVertical: 6, marginHorizontal: 16, borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    marginVertical: 8,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    minHeight: 80,
   },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  iconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  issuer: { fontSize: 16, fontWeight: '700', color: '#000' },
-  account: { fontSize: 13, color: '#8E8E93' },
-  favButton: { padding: 5 },
-  body: { marginTop: 10, alignItems: 'flex-end' },
-  tokenContainer: { alignItems: 'flex-end' },
-  code: { fontSize: 28, fontWeight: '600', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  timer: { fontSize: 11, color: '#C7C7CC' },
-  noteContainer: { width: '100%', alignItems: 'flex-start', backgroundColor: '#FAFAFA', padding: 10, borderRadius: 8 },
-  noteText: { fontSize: 14, color: '#333', fontFamily: 'monospace' },
-  noteBlur: { fontSize: 20, color: '#CCC', letterSpacing: 2 },
-  hint: { fontSize: 10, color: '#999', marginTop: 5 }
+  
+  copyZone: {
+    flex: 1, 
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    paddingRight: 8,
+  },
+
+  leftSection: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    flex: 1, 
+    marginRight: 10 
+  },
+  iconBox: { 
+    width: 48, 
+    height: 48, 
+    borderRadius: 12, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginRight: 12 
+  },
+  infoBox: { 
+    flex: 1,
+    justifyContent: 'center',
+    marginRight: 5
+  },
+  issuer: { 
+    fontSize: 17,
+    fontWeight: '700', 
+    marginBottom: 3
+  },
+  account: { 
+    fontSize: 13, 
+  },
+
+  rightContent: { 
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  code: { 
+    fontSize: 20,
+    fontWeight: '700', 
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: 1
+  },
+  timer: { 
+    fontSize: 12, 
+    marginTop: 4,
+    fontWeight: '600'
+  },
+  errorBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    borderRadius: 6 
+  },
+  errorText: { fontSize: 12, fontWeight: '600' },
+  
+  noteTextVisible: { 
+    fontSize: 15, 
+    fontWeight: '500', 
+    textAlign: 'right', 
+    maxWidth: 140,
+  },
+  noteBlur: { fontSize: 24, letterSpacing: 3, lineHeight: 24 },
+
+  actionsBox: { 
+    flexDirection: 'column', 
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(150,150,150,0.1)',
+    gap: 16,
+    backgroundColor: 'rgba(0,0,0,0.02)'
+  },
+  actionBtn: {
+    padding: 4,
+    alignItems: 'center'
+  }
 });
 
 export default VaultItem;

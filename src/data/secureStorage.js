@@ -8,6 +8,7 @@ export const secureSave = async (key, value) => {
     await AsyncStorage.setItem(key, encrypted);
   } catch (e) {
     console.error("Error guardando (Web):", e);
+    throw e; 
   }
 };
 

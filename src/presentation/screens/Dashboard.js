@@ -1,15 +1,19 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, StatusBar, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import VaultItem from '../components/VaultItem';
 import { VaultService } from '../../services/vaultService';
+import { AuthService } from '../../services/authService';
+import { useTheme } from '../context/ThemeContext';
 
 const Dashboard = () => {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [username, setUsername] = useState('Usuario');
 
   useFocusEffect(
     useCallback(() => {
@@ -19,18 +23,22 @@ const Dashboard = () => {
   );
 
   const loadData = async () => {
-    setLoading(true);
     const accounts = await VaultService.getAccounts();
-    setData(accounts);
+    const user = await AuthService.getUser();
+    if(user) setUsername(user.username);
+    setData([...accounts]); 
     setLoading(false);
   };
 
   const toggleFavorite = async (id) => {
-    const newAccounts = await VaultService.toggleFavorite(id);
-    setData(newAccounts);
+    await VaultService.toggleFavorite(id);
+    loadData();
   };
 
-  const handleFabPress = () => setMenuOpen(!menuOpen);
+  const handleDelete = async (id) => {
+    await VaultService.deleteAccount(id);
+    setData(currentData => currentData.filter(item => item.id !== id));
+  };
 
   const navigateTo = (route) => {
     setMenuOpen(false);
@@ -38,72 +46,78 @@ const Dashboard = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       
-      <View style={styles.header}>
-        <Text style={styles.title}>AuthVault</Text>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
+        <View>
+          <Text style={[styles.subtitle, { color: colors.subText }]}>HOLA, {username.toUpperCase()}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Bóveda</Text>
+        </View>
+        <TouchableOpacity 
+          onPress={() => router.push('/settings')} 
+          style={[styles.settingsBtn, { backgroundColor: colors.card }]}
+        >
+           <Ionicons name="settings-outline" size={26} color={colors.text} />
+        </TouchableOpacity>
       </View>
       
       {loading ? (
-        <ActivityIndicator size="large" color="#007AFF" style={{marginTop: 50}} />
+        <ActivityIndicator size="large" color={colors.primary} style={{marginTop: 50}} />
       ) : (
         <FlatList
           data={data}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <VaultItem item={item} onToggleFavorite={toggleFavorite} />
+            <VaultItem 
+              item={item} 
+              onToggleFavorite={toggleFavorite} 
+              onDelete={handleDelete}
+            />
           )}
-          contentContainerStyle={{ paddingBottom: 100 }} // Espacio para que el FAB no tape el último item
+          contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="shield-checkmark-outline" size={60} color="#ccc" />
-              <Text style={styles.emptyText}>Tu bóveda está vacía.</Text>
+              <Ionicons name="shield-checkmark-outline" size={70} color={colors.border} />
+              <Text style={[styles.emptyText, { color: colors.text }]}>Tu bóveda está vacía.</Text>
+              <Text style={[styles.emptySubText, { color: colors.subText }]}>Toca el + para agregar seguridad.</Text>
             </View>
           }
         />
       )}
 
-      {/* --- CAPA OSCURA (Cuando el menú está abierto) --- */}
       {menuOpen && (
-        <TouchableOpacity style={styles.backdrop} onPress={() => setMenuOpen(false)} activeOpacity={1} />
+        <TouchableOpacity 
+          style={[styles.backdrop, { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.85)' }]} 
+          onPress={() => setMenuOpen(false)} 
+          activeOpacity={1} 
+        />
       )}
 
-      {/* --- MENU DESPLEGABLE --- */}
       <View style={styles.fabContainer}>
         {menuOpen && (
           <View style={styles.menuOptions}>
-            
-            {/* Opción 1: Nueva Nota */}
             <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('/add-note')}>
-              <Text style={styles.menuLabel}>Nueva Nota</Text>
+              <Text style={[styles.menuLabel, { color: colors.text, backgroundColor: colors.card }]}>Nueva Nota</Text>
               <View style={[styles.miniFab, { backgroundColor: '#FF9500' }]}>
                 <Ionicons name="document-text" size={20} color="#fff" />
               </View>
             </TouchableOpacity>
 
-            {/* Opción 2: Nueva Cuenta */}
             <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('/add-account')}>
-              <Text style={styles.menuLabel}>Nueva Cuenta</Text>
-              <View style={[styles.miniFab, { backgroundColor: '#007AFF' }]}>
+              <Text style={[styles.menuLabel, { color: colors.text, backgroundColor: colors.card }]}>Nueva Cuenta</Text>
+              <View style={[styles.miniFab, { backgroundColor: colors.primary }]}>
                 <Ionicons name="qr-code" size={20} color="#fff" />
               </View>
             </TouchableOpacity>
-
           </View>
         )}
 
-        {/* --- BOTÓN PRINCIPAL (+) --- */}
         <TouchableOpacity 
-          style={[styles.fab, menuOpen ? styles.fabOpen : null]} 
-          onPress={handleFabPress}
-          activeOpacity={0.8}
+          style={[styles.fab, menuOpen ? { backgroundColor: colors.text } : { backgroundColor: colors.primary }]} 
+          onPress={() => setMenuOpen(!menuOpen)}
+          activeOpacity={0.9}
         >
-          <Ionicons 
-            name={menuOpen ? "close" : "add"} 
-            size={32} 
-            color="#fff" 
-          />
+          <Ionicons name={menuOpen ? "close" : "add"} size={36} color={menuOpen ? colors.background : "#fff"} />
         </TouchableOpacity>
       </View>
 
@@ -112,37 +126,50 @@ const Dashboard = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F2F7' },
-  header: { padding: 20, backgroundColor: '#F2F2F7' },
-  title: { fontSize: 34, fontWeight: 'bold', color: '#000' },
+  container: { flex: 1 },
+  header: { 
+    paddingHorizontal: 24,
+    paddingVertical: 20, 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
+  },
+  subtitle: { 
+    fontSize: 16,
+    fontWeight: '700', 
+    letterSpacing: 1 
+  },
+  title: { 
+    fontSize: 38,
+    fontWeight: '800', 
+    marginTop: 4 
+  },
+  settingsBtn: { 
+    padding: 10, 
+    borderRadius: 50,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2
+  },
+
   emptyState: { alignItems: 'center', marginTop: 100 },
-  emptyText: { color: '#888', marginTop: 10 },
+  emptyText: { fontSize: 20, fontWeight: '700', marginTop: 15 },
+  emptySubText: { marginTop: 8, fontSize: 16 },
   
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.8)', 
-    zIndex: 1,
-  },
-  fabContainer: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    alignItems: 'flex-end',
-    zIndex: 2,
-  },
+  backdrop: { ...StyleSheet.absoluteFillObject, zIndex: 1 },
+  fabContainer: { position: 'absolute', bottom: 30, right: 24, alignItems: 'flex-end', zIndex: 2 },
   fab: {
-    width: 60, height: 60, borderRadius: 30, backgroundColor: '#007AFF',
+    width: 64, height: 64, borderRadius: 32,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: "#007AFF", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
   },
-  fabOpen: { backgroundColor: '#333' }, // Cambia de color al abrir
-  
   menuOptions: { marginBottom: 15, alignItems: 'flex-end' },
   menuItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  menuLabel: { marginRight: 10, fontWeight: '600', backgroundColor: '#fff', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 5, overflow: 'hidden', shadowColor:'#000', elevation:1 },
+  menuLabel: { 
+    marginRight: 12, fontWeight: '700', fontSize: 15, 
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, 
+    overflow: 'hidden', shadowColor:'#000', elevation:2 
+  },
   miniFab: {
-    width: 45, height: 45, borderRadius: 25,
-    justifyContent: 'center', alignItems: 'center',
+    width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center',
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3,
   }
 });
