@@ -1,37 +1,65 @@
-import { secureGet, secureSave } from '../data/secureStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const AUTH_KEY = 'authvault_user_credentials';
-
+const USERS_KEY = 'auth_users_list';
+let currentUserSession = null;
 export const AuthService = {
-  isRegistered: async () => {
-    const data = await secureGet(AUTH_KEY);
-    return !!data;
+  getAllUsers: async () => {
+    const json = await AsyncStorage.getItem(USERS_KEY);
+    return json ? JSON.parse(json) : [];
   },
-
   register: async (username, pin) => {
-    const userData = { username, pin };
-    await secureSave(AUTH_KEY, JSON.stringify(userData));
+    const users = await AuthService.getAllUsers();
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+      throw new Error('El usuario ya existe');
+    }
+    const newUser = { username, pin };
+    users.push(newUser);
+    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+    currentUserSession = newUser;
     return true;
   },
 
-  login: async (inputPin) => {
-    const json = await secureGet(AUTH_KEY);
-    if (!json) return false;
-    const user = JSON.parse(json);
-    return user.pin === inputPin;
+  login: async (username, pin) => {
+    const users = await AuthService.getAllUsers();
+    const user = users.find(u => u.username === username && u.pin === pin);
+    
+    if (user) {
+      currentUserSession = user;
+      return true;
+    }
+    return false;
   },
 
-  getUser: async () => {
-    const json = await secureGet(AUTH_KEY);
-    return json ? JSON.parse(json) : null;
+  getCurrentUser: () => {
+    return currentUserSession;
   },
-  
+
+  logout: async () => {
+    currentUserSession = null;
+  },
+
   updatePin: async (newPin) => {
-    const json = await secureGet(AUTH_KEY);
-    if (!json) return false;
-    const user = JSON.parse(json);
-    user.pin = newPin;
-    await secureSave(AUTH_KEY, JSON.stringify(user));
-    return true;
+    if (!currentUserSession) return false;
+    
+    const users = await AuthService.getAllUsers();
+    const userIndex = users.findIndex(u => u.username === currentUserSession.username);
+    
+    if (userIndex >= 0) {
+      users[userIndex].pin = newPin;
+      await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+      currentUserSession.pin = newPin;
+      return true;
+    }
+    return false;
+  },
+
+  deleteUser: async () => {
+    if (!currentUserSession) return;
+    
+    let users = await AuthService.getAllUsers();
+    users = users.filter(u => u.username !== currentUserSession.username);
+    
+    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+    currentUserSession = null;
   }
 };

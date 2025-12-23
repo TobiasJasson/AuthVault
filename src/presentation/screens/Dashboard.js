@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+// Asegúrate de usar SafeAreaView de la librería correcta si estás en versiones nuevas, 
+// pero por ahora mantendré el import original para no romperte estilos si no has instalado la otra librería.
 import { AuthService } from '../../services/authService';
 import { VaultService } from '../../services/vaultService';
 import VaultItem from '../components/VaultItem';
@@ -23,20 +25,38 @@ const Dashboard = () => {
   );
 
   const loadData = async () => {
-    const accounts = await VaultService.getAccounts();
-    const user = await AuthService.getUser();
-    if(user) setUsername(user.username);
-    setData([...accounts]); 
-    setLoading(false);
+    try {
+      // 1. CORRECCIÓN: Usamos el nombre correcto 'getCurrentUser'
+      // Nota: getCurrentUser es síncrona en tu servicio, no necesita await, pero no hace daño.
+      const user = AuthService.getCurrentUser();
+
+      // 2. PROTECCIÓN: Si por alguna razón (recarga web) no hay usuario, volvemos al login
+      if (!user) {
+        router.replace('/');
+        return;
+      }
+
+      setUsername(user.username);
+
+      // 3. CARGA SEGURA: Solo pedimos cuentas si sabemos que hay usuario
+      const accounts = await VaultService.getAccounts();
+      setData([...accounts]); 
+      
+    } catch (error) {
+      console.error("Error cargando dashboard:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleFavorite = async (id) => {
     await VaultService.toggleFavorite(id);
-    loadData();
+    loadData(); // Recargamos para ver el cambio
   };
 
   const handleDelete = async (id) => {
     await VaultService.deleteAccount(id);
+    // Actualizamos el estado local para que sea más rápido visualmente
     setData(currentData => currentData.filter(item => item.id !== id));
   };
 

@@ -1,54 +1,64 @@
-import { secureGet, secureSave } from '../data/secureStorage';
-
-const STORAGE_KEY = 'authvault_accounts_v2';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AuthService } from './authService';
 
 export const VaultService = {
+  _getUserKey: () => {
+    const user = AuthService.getCurrentUser();
+    if (!user) throw new Error('No hay usuario logueado');
+    return `vault_data_${user.username}`;
+  },
+
   getAccounts: async () => {
     try {
-      const json = await secureGet(STORAGE_KEY);
-      if (!json) return [];
-      const items = JSON.parse(json);
-      return items.sort((a, b) => (b.isFavorite === true) - (a.isFavorite === true));
+      const key = VaultService._getUserKey();
+      const json = await AsyncStorage.getItem(key);
+      return json ? JSON.parse(json) : [];
     } catch (e) {
       return [];
     }
   },
 
-  addAccount: async (newItem) => {
+  addAccount: async (newAccount) => {
     try {
-      const items = await VaultService.getAccounts();
-      const updatedItems = [
-        ...items, 
-        { 
-          ...newItem, 
-          id: Date.now().toString(), 
-          isFavorite: false,
-          type: newItem.type || 'totp'
-        }
-      ];
-      await secureSave(STORAGE_KEY, JSON.stringify(updatedItems));
+      const accounts = await VaultService.getAccounts();
+      const item = { ...newAccount, id: Date.now().toString(), createdAt: new Date() };
+      const updated = [item, ...accounts];
+      
+      const key = VaultService._getUserKey();
+      await AsyncStorage.setItem(key, JSON.stringify(updated));
       return true;
     } catch (e) {
+      console.error(e);
       return false;
     }
   },
 
   toggleFavorite: async (id) => {
-    const items = await VaultService.getAccounts();
-    const updatedItems = items.map(item => {
-      if (item.id === id) {
-        return { ...item, isFavorite: !item.isFavorite };
-      }
-      return item;
-    });
-    updatedItems.sort((a, b) => (b.isFavorite === true) - (a.isFavorite === true));
-    await secureSave(STORAGE_KEY, JSON.stringify(updatedItems));
-    return updatedItems;
+    const accounts = await VaultService.getAccounts();
+    const updated = accounts.map(acc => 
+      acc.id === id ? { ...acc, isFavorite: !acc.isFavorite } : acc
+    );
+    const key = VaultService._getUserKey();
+    await AsyncStorage.setItem(key, JSON.stringify(updated));
   },
 
   deleteAccount: async (id) => {
-    const items = await VaultService.getAccounts();
-    const filtered = items.filter(a => a.id !== id);
-    await secureSave(STORAGE_KEY, JSON.stringify(filtered));
+    const accounts = await VaultService.getAccounts();
+    const updated = accounts.filter(acc => acc.id !== id);
+    const key = VaultService._getUserKey();
+    await AsyncStorage.setItem(key, JSON.stringify(updated));
+  },
+
+  clearVault: async () => {
+    try {
+      const key = VaultService._getUserKey();
+      await AsyncStorage.removeItem(key);
+      await AuthService.deleteUser();
+      
+      return true;
+    } catch (error) {
+      console.error('Error borrando la bóveda:', error);
+      throw error;
+    }
   }
 };

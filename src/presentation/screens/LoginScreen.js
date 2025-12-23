@@ -1,115 +1,139 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Platform, Alert, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthService } from '../../services/authService';
 
 const LoginScreen = () => {
   const router = useRouter();
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [loading, setLoading] = useState(true);
   
-  const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState([]);
+  
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  
+  const [newUsername, setNewUsername] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
 
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
 
   useEffect(() => {
-    checkRegistrationStatus();
+    loadUsers();
   }, []);
 
-  const checkRegistrationStatus = async () => {
-    const registered = await AuthService.isRegistered();
-    setIsRegistering(!registered);
-    
-    const compatible = await LocalAuthentication.hasHardwareAsync();
-    setIsBiometricSupported(compatible);
-
-    setLoading(false);
-
-    if (registered && compatible && Platform.OS !== 'web') {
-      authenticateBiometric();
-    }
-  };
-
-  const authenticateBiometric = async () => {
+  const loadUsers = async () => {
     try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Ingresar a AuthVault',
-        fallbackLabel: 'Usar PIN',
-      });
-      if (result.success) {
-        router.replace('/dashboard');
+      setLoading(true);
+      const allUsers = await AuthService.getAllUsers();
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      setIsBiometricSupported(compatible);
+      
+      setUsers(allUsers);
+
+      if (allUsers.length === 0) {
+        setIsAddingUser(true);
+      } else if (allUsers.length === 1) {
+        setSelectedUser(allUsers[0]);
       }
     } catch (error) {
-      console.log('Error bio', error);
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAction = async () => {
-    if (isRegistering) {
-      if (!username || !pin || !confirmPin) {
-        return Alert.alert('Error', 'Completa todos los campos');
-      }
-      if (pin !== confirmPin) {
-        return Alert.alert('Error', 'Los PINs no coinciden');
-      }
-      if (pin.length < 4) {
-        return Alert.alert('Error', 'El PIN debe tener al menos 4 dígitos');
-      }
-
-      await AuthService.register(username, pin);
-      Alert.alert('¡Bienvenido!', 'Cuenta creada con éxito.');
-      router.replace('/dashboard');
-
-    } else {
-      const isValid = await AuthService.login(pin);
+  const handleLogin = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      setLoading(true);
+      const isValid = await AuthService.login(selectedUser.username, pin);
+      
       if (isValid) {
+        setPin('');
         router.replace('/dashboard');
       } else {
-        Alert.alert('Acceso Denegado', 'PIN incorrecto');
+        Alert.alert('Error', 'PIN Incorrecto');
         setPin('');
       }
+    } catch (e) {
+      Alert.alert('Error', 'Ocurrió un error al ingresar');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) return <View style={styles.loading}><ActivityIndicator size="large" color="#007AFF"/></View>;
+  const handleRegister = async () => {
+    if (!newUsername || !pin || !confirmPin) return Alert.alert('Faltan datos', 'Completa todos los campos');
+    if (pin !== confirmPin) return Alert.alert('Error', 'Los PINs no coinciden');
+    if (pin.length < 4) return Alert.alert('Seguridad', 'El PIN debe tener al menos 4 dígitos');
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name={isRegistering ? "person-add-outline" : "shield-checkmark-outline"} size={60} color="#007AFF" />
-        </View>
+    try {
+      setLoading(true);
+      await AuthService.register(newUsername, pin);
+      Alert.alert('Éxito', `Usuario ${newUsername} creado.`);
+      
+      setNewUsername('');
+      setPin('');
+      setConfirmPin('');
+      setIsAddingUser(false);
+      router.replace('/dashboard');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo crear el usuario');
+      setLoading(false);
+    }
+  };
 
-        <Text style={styles.title}>{isRegistering ? 'Crear Cuenta' : 'Bienvenido'}</Text>
-        <Text style={styles.subtitle}>
-          {isRegistering ? 'Configura tu seguridad para empezar' : 'Ingresa tu PIN o Huella'}
-        </Text>
+  const handleBiometric = async () => {
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: `Ingresar como ${selectedUser.username}`,
+      fallbackLabel: 'Usar PIN'
+    });
+    if (result.success) {
+      await AuthService.login(selectedUser.username, selectedUser.pin);
+      router.replace('/dashboard');
+    }
+  };
 
-        <View style={styles.form}>
-          {isRegistering && (
+  if (loading) {
+    return (
+      <View style={styles.loadingCenter}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
+  if (isAddingUser) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <View style={[styles.iconContainer, { backgroundColor: '#E5F1FF' }]}>
+            <Ionicons name="person-add" size={50} color="#007AFF" />
+          </View>
+          <Text style={styles.title}>Nuevo Usuario</Text>
+          <Text style={styles.subtitle}>Crea un espacio separado en este dispositivo</Text>
+
+          <View style={styles.form}>
             <TextInput
               style={styles.input}
-              placeholder="Nombre de Usuario"
-              value={username}
-              onChangeText={setUsername}
+              placeholder="Nombre (Ej: Pepe)"
+              value={newUsername}
+              onChangeText={setNewUsername}
+              autoCapitalize="words"
             />
-          )}
-
-          <TextInput
-            style={styles.input}
-            placeholder="PIN de Seguridad"
-            value={pin}
-            onChangeText={setPin}
-            secureTextEntry
-            keyboardType="numeric"
-            maxLength={6}
-          />
-
-          {isRegistering && (
+            <TextInput
+              style={styles.input}
+              placeholder="Crear PIN"
+              value={pin}
+              onChangeText={setPin}
+              secureTextEntry
+              keyboardType="numeric"
+              maxLength={6}
+            />
             <TextInput
               style={styles.input}
               placeholder="Confirmar PIN"
@@ -119,19 +143,93 @@ const LoginScreen = () => {
               keyboardType="numeric"
               maxLength={6}
             />
-          )}
+            <TouchableOpacity style={styles.btnPrimary} onPress={handleRegister}>
+              <Text style={styles.btnText}>Crear Cuenta</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.button} onPress={handleAction}>
-            <Text style={styles.buttonText}>{isRegistering ? 'Registrarme' : 'Entrar'}</Text>
-          </TouchableOpacity>
+            {users.length > 0 && (
+              <TouchableOpacity onPress={() => setIsAddingUser(false)} style={styles.btnLink}>
+                <Text style={styles.linkText}>Cancelar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+      </SafeAreaView>
+    );
+  }
 
-        {!isRegistering && isBiometricSupported && Platform.OS !== 'web' && (
-          <TouchableOpacity onPress={authenticateBiometric} style={styles.bioButton}>
-            <Ionicons name="finger-print" size={40} color="#007AFF" />
-            <Text style={styles.bioText}>Usar Biometría</Text>
-          </TouchableOpacity>
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        
+        {!selectedUser ? (
+          <>
+            <Text style={styles.title}>¿Quién eres?</Text>
+            <Text style={styles.subtitle}>Selecciona tu perfil</Text>
+            
+            <ScrollView style={{ width: '100%', maxHeight: 300 }}>
+              {users.map((u, index) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.userCard} 
+                  onPress={() => setSelectedUser(u)}
+                >
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{u.username.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.userName}>{u.username}</Text>
+                  <Ionicons name="chevron-forward" size={24} color="#ccc" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.btnAddUser} onPress={() => setIsAddingUser(true)}>
+              <Ionicons name="add-circle-outline" size={24} color="#007AFF" />
+              <Text style={[styles.linkText, { marginLeft: 8 }]}>Agregar otra cuenta</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+             <TouchableOpacity onPress={() => { setSelectedUser(null); setPin(''); }} style={styles.backUser}>
+                <Ionicons name="arrow-back" size={24} color="#555" />
+                <Text style={{color: '#555', marginLeft: 5}}>Cambiar usuario</Text>
+             </TouchableOpacity>
+
+             <View style={[styles.avatarBig, { backgroundColor: '#E8F5E9' }]}>
+                <Text style={[styles.avatarText, { fontSize: 40, color: '#34C759' }]}>
+                  {selectedUser.username.charAt(0).toUpperCase()}
+                </Text>
+             </View>
+
+             <Text style={styles.title}>Hola, {selectedUser.username}</Text>
+             <Text style={styles.subtitle}>Ingresa tu PIN</Text>
+
+             <View style={styles.form}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="PIN"
+                  value={pin}
+                  onChangeText={setPin}
+                  secureTextEntry
+                  keyboardType="numeric"
+                  maxLength={6}
+                  autoFocus
+                />
+                
+                <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: '#34C759' }]} onPress={handleLogin}>
+                  <Text style={styles.btnText}>Entrar</Text>
+                </TouchableOpacity>
+             </View>
+
+             {isBiometricSupported && Platform.OS !== 'web' && (
+                <TouchableOpacity onPress={handleBiometric} style={styles.bioBtn}>
+                  <Ionicons name="finger-print" size={32} color="#34C759" />
+                  <Text style={{ color: '#34C759', marginTop: 5 }}>Huella</Text>
+                </TouchableOpacity>
+             )}
+          </>
         )}
+
       </View>
     </SafeAreaView>
   );
@@ -139,24 +237,52 @@ const LoginScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  iconContainer: { marginBottom: 20, backgroundColor: '#E5F1FF', padding: 20, borderRadius: 50 },
+  loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content: { flex: 1, alignItems: 'center', padding: 24, paddingTop: 40 },
+  
   title: { fontSize: 28, fontWeight: 'bold', marginBottom: 5, color: '#333' },
-  subtitle: { color: '#888', marginBottom: 30, textAlign: 'center' },
+  subtitle: { color: '#888', marginBottom: 30 },
+
+  iconContainer: { padding: 20, borderRadius: 50, marginBottom: 20 },
+  
   form: { width: '100%', maxWidth: 320 },
   input: { 
     width: '100%', height: 55, backgroundColor: '#F2F2F7', 
-    borderRadius: 12, paddingHorizontal: 15, fontSize: 16, marginBottom: 15, borderWidth: 1, borderColor: 'transparent'
+    borderRadius: 12, paddingHorizontal: 15, fontSize: 16, marginBottom: 15 
   },
-  button: { 
-    backgroundColor: '#007AFF', width: '100%', height: 55, borderRadius: 12, 
-    justifyContent: 'center', alignItems: 'center', marginTop: 10,
-    shadowColor: "#007AFF", shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5
+  btnPrimary: { 
+    backgroundColor: '#007AFF', height: 55, borderRadius: 12, 
+    justifyContent: 'center', alignItems: 'center', marginTop: 10 
   },
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 18 },
-  bioButton: { marginTop: 40, alignItems: 'center' },
-  bioText: { color: '#007AFF', marginTop: 5, fontWeight: '500' }
+  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 18 },
+  
+  btnLink: { marginTop: 20, alignItems: 'center' },
+  linkText: { color: '#007AFF', fontSize: 16, fontWeight: '600' },
+
+  userCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#fff', padding: 15, borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 1, borderColor: '#eee',
+    shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 5, elevation: 2
+  },
+  avatar: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: '#eee',
+    justifyContent: 'center', alignItems: 'center', marginRight: 15
+  },
+  avatarText: { fontSize: 18, fontWeight: 'bold', color: '#555' },
+  userName: { flex: 1, fontSize: 18, fontWeight: '600' },
+  
+  btnAddUser: { flexDirection: 'row', alignItems: 'center', marginTop: 10, padding: 10 },
+
+  avatarBig: {
+    width: 100, height: 100, borderRadius: 50,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 20
+  },
+  backUser: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', marginBottom: 20
+  },
+  bioBtn: { alignItems: 'center', marginTop: 30 }
 });
 
 export default LoginScreen;
